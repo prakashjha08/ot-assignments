@@ -1,0 +1,59 @@
+---
+- hosts: web-server
+  vars:
+    domain:
+            -  { domain: prakash.opstree.com, http_port: 80 }
+            -  { domain: vishal.opstree.com, http_port: 80 }
+  
+    service:
+            - { name:nginx, state:latest, distribution:Ubuntu }
+            - { name:mysql, state:latest, distribution:Amazon }
+            - { name:mysql-server, state:latest, distribution:Ubuntu}
+  tasks:
+    - name: install nginx
+      package: 
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+      loop:
+            - name: nginx
+              state: latest
+              distribution: Ubuntu
+
+            - name: mysql
+              state: latest
+              distribution: Amazon
+
+            - name: mysql-server
+              state: latest
+              distribution: Ubuntu
+
+      when: ansible_distribution == item.distribution
+
+    - name: create a virtualhost file from template
+      template: src=virtualhost.conf.tpl dest=/etc/nginx/sites-available/{{ item.domain }}.conf
+      notify:
+        - restart nginx
+      with_items:
+              - "{{ domain }}"
+    - name: create symlink
+      file: src=/etc/nginx/sites-available/{{ item.domain }}.conf dest=/etc/nginx/sites-enabled/{{ item.domain }}.conf state=link
+      notify:
+        - restart nginx
+      with_items:
+              - "{{ domain }}"
+
+    - name: create folders
+      file:
+          path: /usr/share/nginx/{{ item.domain }}
+          state: directory
+      with_items:
+              - "{{ domain }}"
+    - name: copy index file
+      template: src=index.html.tpl dest=/usr/share/nginx/{{ item.domain }}/index.html
+      notify:
+        - restart nginx
+      with_items:
+              - "{{ domain }}"
+  handlers:
+    - name: restart nginx
+      service: name=nginx state=started
